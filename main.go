@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -14,7 +15,13 @@ import (
 	"syscall"
 )
 
-const VERSION  = 0.1
+const VERSION  = 0.2
+
+func helpText() {
+	fmt.Println(`Download HTTP Live Streaming (HLS) content`)
+	fmt.Printf("\nUsage: %s [options] [m3u url]\n\n", os.Args[0])
+	flag.PrintDefaults()
+}
 
 func getBaseURL(playlistUrl string) (string, error) {
 	u, err := url.Parse(playlistUrl)
@@ -95,12 +102,47 @@ func download(playlistUrl string, filePath string) error {
 	return nil
 }
 
+func readUrl() string {
+	run := true
+	for run {
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Print("Enter m3u URL: ")
+		text, err := reader.ReadString('\n')
+		text = strings.TrimSuffix(text, "\n")
+		if err != nil {
+			log.Println(err.Error())
+			run = false
+		}
+		if text == `` { continue }
+		return text
+	}
+	return ``
+}
+
 func main() {
+	args := new(Args)
+	help := flag.Bool("h", false, "print this help")
+	ver := flag.Bool("v", false, "Show version")
+	args.Output = flag.String(`o`, ``, `Output to <file>. Use '-' for stdout and empty for <unixtime>.mp4`)
+	flag.Parse()
+
+	if *help {
+		helpText()
+		os.Exit(0)
+	}
+
+	if *ver {
+		fmt.Println(VERSION)
+		os.Exit(0)
+	}
+
 	log.SetFlags(log.Lshortfile)
 
-	log.Println(os.Args)
+	m3uUrl := ``
+	if args := flag.Args(); len(args) > 0 { m3uUrl = args[0] }
+	if m3uUrl == `` { m3uUrl = readUrl() }
 
-	if err := download(os.Args[1], os.Args[2]); err != nil {
+	if err := download(m3uUrl, args.GetOutputPath()); err != nil {
 		syscall.Exit(1)
 	}
 }
