@@ -15,7 +15,7 @@ import (
 	"syscall"
 )
 
-const VERSION  = 0.2
+const VERSION  = 0.3
 
 func helpText() {
 	fmt.Println(`Download HTTP Live Streaming (HLS) content`)
@@ -71,7 +71,7 @@ func readChunk(chunkUrl string, w io.Writer) error {
 	return nil
 }
 
-func download(playlistUrl string, filePath string) error {
+func download(playlistUrl string, w io.WriteCloser) error {
 	baseUrl, err := getBaseURL(playlistUrl)
 	if err != nil { return err }
 
@@ -83,13 +83,6 @@ func download(playlistUrl string, filePath string) error {
 
 	chunksUrls := getChunksUrls(response.Body, baseUrl)
 	if err := response.Body.Close(); err!=nil { log.Println(err.Error()) }
-
-	w, err := os.Create(filePath)
-	if err != nil {
-		log.Println(err.Error())
-		return err
-	}
-	defer w.Close()
 
 	for _, chunksUrl := range chunksUrls {
 		log.Println(chunksUrl)
@@ -124,6 +117,7 @@ func main() {
 	help := flag.Bool("h", false, "print this help")
 	ver := flag.Bool("v", false, "Show version")
 	args.Output = flag.String(`o`, ``, `Output to <file>. Use '-' for stdout and empty for <unixtime>.mp4`)
+	args.Overwrite = flag.String(`w`, `uniq`, `Overwrite output file (fail/uniq/overwrite)`)
 	flag.Parse()
 
 	if *help {
@@ -136,13 +130,23 @@ func main() {
 		os.Exit(0)
 	}
 
+	if !args.CheckOverwrite() {
+		fmt.Fprintf(os.Stderr, "Cant't use '%s' as overwite parameter!\n\n", *args.Overwrite)
+		helpText()
+		os.Exit(1)
+	}
+
 	log.SetFlags(log.Lshortfile)
+
+	output, err := NewOutput(args)
+	if err != nil { os.Exit(1) }
+	log.Println(output)
 
 	m3uUrl := ``
 	if args := flag.Args(); len(args) > 0 { m3uUrl = args[0] }
 	if m3uUrl == `` { m3uUrl = readUrl() }
 
-	if err := download(m3uUrl, args.GetOutputPath()); err != nil {
+	if err := download(m3uUrl, output); err != nil {
 		syscall.Exit(1)
 	}
 }

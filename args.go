@@ -1,24 +1,14 @@
 package main
 
-import (
-	"fmt"
-	"path"
-	"time"
-)
-
 type Args struct {
 	Output *string
-	outputPath string
+	Overwrite *string
 }
 
-func (args *Args) GetOutputPath() string {
-	if args.outputPath != `` { return args.outputPath }
-	outputPath := *args.Output
-	if outputPath == `-` { return outputPath }
-	if outputPath == `` {
-		outputPath = fmt.Sprintf("%d.mp4", time.Now().Unix())
-	}
-	outputPath = path.Clean(outputPath)
-	args.outputPath = outputPath
-	return outputPath
+func (args *Args) CheckOverwrite() bool {
+	overwrite := *args.Overwrite
+	if overwrite == `fail` { return true }
+	if overwrite == `uniq` { return true }
+	if overwrite == `overwrite` { return true }
+	return false
 }
