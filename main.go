@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/vvampirius/hls-downloader/playlist"
 	"io"
 	"log"
 	"net/http"
@@ -15,7 +16,7 @@ import (
 	"syscall"
 )
 
-const VERSION  = 0.3
+const VERSION  = 0.4
 
 func helpText() {
 	fmt.Println(`Download HTTP Live Streaming (HLS) content`)
@@ -80,13 +81,16 @@ func download(playlistUrl string, w io.WriteCloser) error {
 		log.Println(err.Error())
 		return err
 	}
+	defer func() {
+		if err := response.Body.Close(); err!=nil { log.Println(err.Error()) }
+	}()
 
-	chunksUrls := getChunksUrls(response.Body, baseUrl)
-	if err := response.Body.Close(); err!=nil { log.Println(err.Error()) }
+	p, err := playlist.Parse(response.Body)
+	if err != nil { return err }
 
-	for _, chunksUrl := range chunksUrls {
-		log.Println(chunksUrl)
-		if err := readChunk(chunksUrl, w); err != nil {
+	for _, segment := range p.Segments {
+		log.Println(segment)
+		if err := readChunk(baseUrl+`/`+segment.Uri, w); err != nil {
 			log.Println(err.Error())
 			return err
 		}
