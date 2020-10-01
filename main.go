@@ -12,11 +12,13 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 )
 
-const VERSION  = 0.5
+const VERSION  = 0.6
 
 func helpText() {
 	fmt.Println(`Download HTTP Live Streaming (HLS) content`)
@@ -141,12 +143,29 @@ func readUrl() string {
 	return ``
 }
 
+func readOutputFilename() string {
+	for {
+		fmt.Print(`Filename: `)
+		reader := bufio.NewReader(os.Stdin)
+		line, err := reader.ReadString('\n')
+		if err != nil { log.Fatal(err.Error()) }
+		line = strings.TrimSuffix(line, "\n")
+		if line == `` { return fmt.Sprintf("%d.mp4", time.Now().Unix()) }
+		if ext := filepath.Ext(line); ext==`` || len(ext) > 4 {
+			log.Println(`Added mp4 extension`)
+			line = line + `.mp4`
+		}
+		if _, err := os.Stat(line); err == nil {
+			log.Printf("'%s' already exists\n", line)
+			continue
+		}
+		return line
+	}
+}
+
 func main() {
-	args := new(Args)
 	help := flag.Bool("h", false, "print this help")
 	ver := flag.Bool("v", false, "Show version")
-	args.Output = flag.String(`o`, ``, `Output to <file>. Use '-' for stdout and empty for <unixtime>.mp4`)
-	args.Overwrite = flag.String(`w`, `uniq`, `Overwrite output file (fail/uniq/overwrite)`)
 	flag.Parse()
 
 	if *help {
@@ -159,17 +178,11 @@ func main() {
 		os.Exit(0)
 	}
 
-	if !args.CheckOverwrite() {
-		fmt.Fprintf(os.Stderr, "Cant't use '%s' as overwite parameter!\n\n", *args.Overwrite)
-		helpText()
-		os.Exit(1)
-	}
-
 	log.SetFlags(log.Lshortfile)
 
-	output, err := NewOutput(args)
+	outputFilename := readOutputFilename()
+	output, err := os.Create(outputFilename)
 	if err != nil { os.Exit(1) }
-	log.Println(output)
 
 	m3uUrl := ``
 	if args := flag.Args(); len(args) > 0 { m3uUrl = args[0] }
