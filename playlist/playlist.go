@@ -20,6 +20,7 @@ var (
 	RegexpMediaSequence = regexp.MustCompile(`^#EXT-X-MEDIA-SEQUENCE:(\d+)$`)
 	RegexpExtInf = regexp.MustCompile(`^#EXTINF:([\d\.]+),(.*)`)
 	RegexpUri = regexp.MustCompile(`^([^\s#].*)`)
+	RegexpEndList = regexp.MustCompile(`^#EXT-X-ENDLIST$`)
 )
 
 type Segment struct {
@@ -32,6 +33,7 @@ type Playlist struct {
 	Version int
 	TargetDuration int
 	MediaSequence int
+	EndList bool
 	Segments []Segment
 }
 
@@ -116,6 +118,10 @@ func Parse(r io.Reader) (*Playlist, error) {
 		if parseInt(line, RegexpVersion, &p.Version) { continue }
 		if parseInt(line, RegexpTargetDuration, &p.TargetDuration) { continue }
 		if parseInt(line, RegexpMediaSequence, &p.MediaSequence) { continue }
+		if RegexpEndList.MatchString(line) {
+			p.EndList = true
+			continue
+		}
 	}
 
 	if len(p.Segments) == 0 {

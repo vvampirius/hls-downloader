@@ -16,7 +16,7 @@ import (
 	"syscall"
 )
 
-const VERSION  = 0.4
+const VERSION  = 0.5
 
 func helpText() {
 	fmt.Println(`Download HTTP Live Streaming (HLS) content`)
@@ -57,10 +57,12 @@ func readChunk(chunkUrl string, w io.Writer) error {
 	defer response.Body.Close()
 
 	if response.StatusCode == http.StatusNotFound {
-		return errors.New(`not found`)
+		return errors.New(fmt.Sprintf("%s %s", chunkUrl, response.Status))
 	}
 
-	log.Println(response.StatusCode)
+	if response.StatusCode != http.StatusOK {
+		log.Println(response.Status)
+	}
 
 	n, err := io.Copy(w, response.Body)
 	log.Printf("Got %d bytes\n", n)
@@ -70,6 +72,25 @@ func readChunk(chunkUrl string, w io.Writer) error {
 	}
 
 	return nil
+}
+
+
+func makeChunkUrl(baseUrl, segmentUri string) (string, error) {
+	if baseUrl == `` || segmentUri == `` {
+		err := errors.New(fmt.Sprintf("baseUrl: '%s', segmentUrl: '%s'", baseUrl, segmentUri))
+		log.Println(err.Error())
+		return ``, err
+	}
+
+	if string([]rune(segmentUri)[0]) != `/` { return baseUrl+`/`+segmentUri, nil }
+
+	baseUrlParsed, err := url.Parse(baseUrl)
+	if err != nil {
+		log.Println(err.Error())
+		return "", err
+	}
+	chunkUrl := fmt.Sprintf("%s://%s%s", baseUrlParsed.Scheme, baseUrlParsed.Host, segmentUri)
+	return chunkUrl, nil
 }
 
 func download(playlistUrl string, w io.WriteCloser) error {
@@ -87,10 +108,14 @@ func download(playlistUrl string, w io.WriteCloser) error {
 
 	p, err := playlist.Parse(response.Body)
 	if err != nil { return err }
+	log.Println(p) //TODO remove this
 
 	for _, segment := range p.Segments {
 		log.Println(segment)
-		if err := readChunk(baseUrl+`/`+segment.Uri, w); err != nil {
+		chunkUrl, err := makeChunkUrl(baseUrl, segment.Uri)
+		if err != nil { return err }
+		log.Println(chunkUrl)
+		if err := readChunk(chunkUrl, w); err != nil {
 			log.Println(err.Error())
 			return err
 		}
