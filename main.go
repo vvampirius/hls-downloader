@@ -19,11 +19,12 @@ import (
 	"time"
 )
 
-const VERSION  = 0.7
+const VERSION  = 0.8
 
 func helpText() {
+	fmt.Println(`https://github.com/vvampirius/hls-downloader`)
 	fmt.Println(`Download HTTP Live Streaming (HLS) content`)
-	fmt.Printf("\nUsage: %s [options] [m3u url]\n\n", os.Args[0])
+	fmt.Printf("\nUsage: %s [options] [<m3u url> <output filename>]\n\n", os.Args[0])
 	flag.PrintDefaults()
 }
 
@@ -213,15 +214,24 @@ func main() {
 
 	log.SetFlags(log.Lshortfile)
 
-	outputFilename := readOutputFilename()
+	var m3uUrl, outputFilename string
+	switch flag.NArg() {
+	case 2:
+		m3uUrl, outputFilename = flag.Arg(0), flag.Arg(1)
+		if _, err := os.Stat(outputFilename); err == nil { log.Fatalln(`File exist!`) }
+	case 0:
+		outputFilename = readOutputFilename()
+		m3uUrl = readUrl()
+	default:
+		os.Stdout = os.Stderr
+		helpText()
+		os.Exit(1)
+	}
+
 	useFfmpeg := true
 	if *noffmpeg { useFfmpeg = false }
 	output, err := getOutput(outputFilename, useFfmpeg)
 	if err != nil { os.Exit(1) }
-
-	m3uUrl := ``
-	if args := flag.Args(); len(args) > 0 { m3uUrl = args[0] }
-	if m3uUrl == `` { m3uUrl = readUrl() }
 
 	if err := download(m3uUrl, output); err != nil {
 		syscall.Exit(1)
