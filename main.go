@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
@@ -18,7 +19,7 @@ import (
 	"time"
 )
 
-const VERSION  = 0.6
+const VERSION  = 0.7
 
 func helpText() {
 	fmt.Println(`Download HTTP Live Streaming (HLS) content`)
@@ -163,9 +164,41 @@ func readOutputFilename() string {
 	}
 }
 
+
+func getFfmpegOutput(outputFilename string) (io.WriteCloser, error) {
+	cmd := exec.Command(`ffmpeg`, `-f`, `mpegts`, `-vcodec`, `h264`, `-i`, `-`, `-codec`, `copy`, outputFilename)
+	output, err := cmd.StdinPipe()
+	if err != nil {
+		log.Println(err.Error())
+		return nil, err
+	}
+	err = cmd.Start()
+	if err != nil {
+		log.Println(err.Error())
+		return nil, err
+	}
+	return output, nil
+}
+
+
+func getOutput(outputFilename string, useFfmpeg bool) (io.WriteCloser, error) {
+	if useFfmpeg {
+		if output, err := getFfmpegOutput(outputFilename); err == nil { return output, nil }
+		log.Println(`Can't use ffmpeg! Trying to save to file as-is...`)
+	}
+	output, err := os.Create(outputFilename)
+	if err != nil {
+		log.Println(err.Error())
+		return nil, err
+	}
+	return output, nil
+}
+
+
 func main() {
 	help := flag.Bool("h", false, "print this help")
 	ver := flag.Bool("v", false, "Show version")
+	noffmpeg := flag.Bool("noffmpeg", false, "Do not use ffmpeg")
 	flag.Parse()
 
 	if *help {
@@ -181,7 +214,9 @@ func main() {
 	log.SetFlags(log.Lshortfile)
 
 	outputFilename := readOutputFilename()
-	output, err := os.Create(outputFilename)
+	useFfmpeg := true
+	if *noffmpeg { useFfmpeg = false }
+	output, err := getOutput(outputFilename, useFfmpeg)
 	if err != nil { os.Exit(1) }
 
 	m3uUrl := ``
