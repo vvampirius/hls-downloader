@@ -19,7 +19,12 @@ import (
 	"time"
 )
 
-const VERSION  = 0.8
+const VERSION = 0.9
+
+var (
+	ErrorLog = log.New(os.Stderr, `error#`, log.Lshortfile)
+	DebugLog = log.New(os.Stdout, `debug#`, log.Lshortfile)
+)
 
 func helpText() {
 	fmt.Println(`https://github.com/vvampirius/hls-downloader`)
@@ -43,25 +48,33 @@ func getChunksUrls(r io.Reader, baseUrl string) []string {
 	run := true
 	for run {
 		line, err := reader.ReadString('\n')
-		if err != nil { run = false }
-		if err != nil && err != io.EOF { log.Println(err.Error()) }
-		if len(line) == 0 { continue }
-		if string(line[0]) == `#` { continue }
+		if err != nil {
+			run = false
+		}
+		if err != nil && err != io.EOF {
+			log.Println(err.Error())
+		}
+		if len(line) == 0 {
+			continue
+		}
+		if string(line[0]) == `#` {
+			continue
+		}
 		chunksUrls = append(chunksUrls, baseUrl+`/`+strings.TrimSuffix(line, "\n"))
 	}
 	return chunksUrls
 }
 
-func readChunk(chunkUrl string, w io.Writer) error {
+func readChunk(chunkUrl string, w io.Writer) (int64, error) {
 	response, err := http.Get(chunkUrl)
 	if err != nil {
-		log.Println(err.Error())
-		return err
+		ErrorLog.Println(err.Error())
+		return 0, err
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode == http.StatusNotFound {
-		return errors.New(fmt.Sprintf("%s %s", chunkUrl, response.Status))
+		return 0, errors.New(fmt.Sprintf("%s %s", chunkUrl, response.Status))
 	}
 
 	if response.StatusCode != http.StatusOK {
@@ -69,15 +82,13 @@ func readChunk(chunkUrl string, w io.Writer) error {
 	}
 
 	n, err := io.Copy(w, response.Body)
-	log.Printf("Got %d bytes\n", n)
 	if err != nil {
-		log.Println(err.Error())
-		return err
+		ErrorLog.Println(err.Error())
+		return n, err
 	}
 
-	return nil
+	return n, nil
 }
-
 
 func makeChunkUrl(baseUrl, segmentUri string) (string, error) {
 	if baseUrl == `` || segmentUri == `` {
@@ -86,7 +97,9 @@ func makeChunkUrl(baseUrl, segmentUri string) (string, error) {
 		return ``, err
 	}
 
-	if string([]rune(segmentUri)[0]) != `/` { return baseUrl+`/`+segmentUri, nil }
+	if string([]rune(segmentUri)[0]) != `/` {
+		return baseUrl + `/` + segmentUri, nil
+	}
 
 	baseUrlParsed, err := url.Parse(baseUrl)
 	if err != nil {
@@ -99,31 +112,50 @@ func makeChunkUrl(baseUrl, segmentUri string) (string, error) {
 
 func download(playlistUrl string, w io.WriteCloser) error {
 	baseUrl, err := getBaseURL(playlistUrl)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 
 	response, err := http.Get(playlistUrl)
 	if err != nil {
-		log.Println(err.Error())
+		ErrorLog.Println(err.Error())
 		return err
 	}
 	defer func() {
-		if err := response.Body.Close(); err!=nil { log.Println(err.Error()) }
+		if err := response.Body.Close(); err != nil {
+			ErrorLog.Println(err.Error())
+		}
 	}()
 
-	p, err := playlist.Parse(response.Body)
-	if err != nil { return err }
-	log.Println(p) //TODO remove this
-
-	for _, segment := range p.Segments {
-		log.Println(segment)
-		chunkUrl, err := makeChunkUrl(baseUrl, segment.Uri)
-		if err != nil { return err }
-		log.Println(chunkUrl)
-		if err := readChunk(chunkUrl, w); err != nil {
-			log.Println(err.Error())
+	segmentNum := 0
+	var downloadedDuration float32
+	var gotBytes int64
+	p := playlist.Parse(response.Body)
+	for {
+		segment, err := p.GetSegment()
+		if err != nil {
 			return err
 		}
+		if segment == nil {
+			break
+		}
+		segmentNum++
+		chunkUrl, err := makeChunkUrl(baseUrl, segment.Uri)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("[%d / %d] [%s / %s] [%.1f Mb] %s\n",
+			segmentNum, p.SegmentsCount, time.Duration(downloadedDuration*float32(time.Second)),
+			time.Duration(p.SegmentsDuration*float32(time.Second)), float64(gotBytes)/1024/1024, chunkUrl)
+		gotSegmentBytes, err := readChunk(chunkUrl, w)
+		if err != nil {
+			ErrorLog.Println(err.Error())
+			return err
+		}
+		downloadedDuration = downloadedDuration + segment.Duration
+		gotBytes = gotBytes + gotSegmentBytes
 	}
+	fmt.Printf("%.1f Mb saved\n", float64(gotBytes)/1024/1024)
 
 	return nil
 }
@@ -139,7 +171,9 @@ func readUrl() string {
 			log.Println(err.Error())
 			run = false
 		}
-		if text == `` { continue }
+		if text == `` {
+			continue
+		}
 		return text
 	}
 	return ``
@@ -150,10 +184,14 @@ func readOutputFilename() string {
 		fmt.Print(`Filename: `)
 		reader := bufio.NewReader(os.Stdin)
 		line, err := reader.ReadString('\n')
-		if err != nil { log.Fatal(err.Error()) }
+		if err != nil {
+			log.Fatal(err.Error())
+		}
 		line = strings.TrimSuffix(line, "\n")
-		if line == `` { return fmt.Sprintf("%d.mp4", time.Now().Unix()) }
-		if ext := filepath.Ext(line); ext==`` || len(ext) > 4 {
+		if line == `` {
+			return fmt.Sprintf("%d.mp4", time.Now().Unix())
+		}
+		if ext := filepath.Ext(line); ext == `` || len(ext) > 4 {
 			log.Println(`Added mp4 extension`)
 			line = line + `.mp4`
 		}
@@ -164,7 +202,6 @@ func readOutputFilename() string {
 		return line
 	}
 }
-
 
 func getFfmpegOutput(outputFilename string) (io.WriteCloser, error) {
 	cmd := exec.Command(`ffmpeg`, `-f`, `mpegts`, `-vcodec`, `h264`, `-i`, `-`, `-codec`, `copy`, outputFilename)
@@ -181,10 +218,11 @@ func getFfmpegOutput(outputFilename string) (io.WriteCloser, error) {
 	return output, nil
 }
 
-
 func getOutput(outputFilename string, useFfmpeg bool) (io.WriteCloser, error) {
 	if useFfmpeg {
-		if output, err := getFfmpegOutput(outputFilename); err == nil { return output, nil }
+		if output, err := getFfmpegOutput(outputFilename); err == nil {
+			return output, nil
+		}
 		log.Println(`Can't use ffmpeg! Trying to save to file as-is...`)
 	}
 	output, err := os.Create(outputFilename)
@@ -194,7 +232,6 @@ func getOutput(outputFilename string, useFfmpeg bool) (io.WriteCloser, error) {
 	}
 	return output, nil
 }
-
 
 func main() {
 	help := flag.Bool("h", false, "print this help")
@@ -212,13 +249,13 @@ func main() {
 		os.Exit(0)
 	}
 
-	log.SetFlags(log.Lshortfile)
-
 	var m3uUrl, outputFilename string
 	switch flag.NArg() {
 	case 2:
 		m3uUrl, outputFilename = flag.Arg(0), flag.Arg(1)
-		if _, err := os.Stat(outputFilename); err == nil { log.Fatalln(`File exist!`) }
+		if _, err := os.Stat(outputFilename); err == nil {
+			ErrorLog.Fatalln(`File exist!`)
+		}
 	case 0:
 		outputFilename = readOutputFilename()
 		m3uUrl = readUrl()
@@ -229,9 +266,13 @@ func main() {
 	}
 
 	useFfmpeg := true
-	if *noffmpeg { useFfmpeg = false }
+	if *noffmpeg {
+		useFfmpeg = false
+	}
 	output, err := getOutput(outputFilename, useFfmpeg)
-	if err != nil { os.Exit(1) }
+	if err != nil {
+		os.Exit(1)
+	}
 
 	if err := download(m3uUrl, output); err != nil {
 		syscall.Exit(1)

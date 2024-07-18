@@ -1,3 +1,3 @@
 module github.com/vvampirius/hls-downloader/playlist
 
-go 1.13
+go 1.22
