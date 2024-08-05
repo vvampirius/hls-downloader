@@ -1,0 +1,33 @@
+<html>
+    <body>
+        <form action="/add" method="get">
+            <input type="hidden" name="ignore_referrer" value="true">
+            <table style="margin: 0 auto">
+                <tr>
+                    <td><label for="filename">Filename:</label></td>
+                    <td><input type="text" name="filename" id="filename" autofocus/></td>
+                </tr>
+                <tr>
+                    <td><label for="url">URL: </label></td>
+                    <td><input type="url" name="url" id="url" required /></td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="text-align: center"><input type="submit" value="Add" /></td>
+                </tr>
+            </table>
+        </form>
+        <table style="margin: 0 auto">
+            {{ range $key, $value := . }}
+            <tr>
+                <td>{{ if $value.Finished }}✅{{ else }}⌛️{{ end }}</td>
+                <td>
+                    <a href="/{{ $key }}/">{{ $value.Filename }}</a>
+                    {{ if ne $value.Source "" }}
+                    <br><a href="{{$value.Source}}" target="_blank" style="font-size: small;">{{$value.Source}}</a>
+                    {{ end }}
+                </td>
+            </tr>
+            {{ end }}
+        </table>
+    </body>
+</html>

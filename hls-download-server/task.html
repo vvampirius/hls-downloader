@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+    <body>
+        <div style="text-align: center;">
+            <a href="/">UP</a>
+        </div>
+        <table style="border-style: outset; width: 30rem; margin: 0 auto; border-radius: 5px; margin-top: 1em; background-color: floralwhite;
+  padding: 5px;">
+            <tr><td colspan="2"><p id="error"></p></td></tr>
+            <tr>
+                <td>Filename</td>
+                <td style="text-align: center;">
+                    <form>
+                        <input id="filename" type="text">
+                        <input type="submit" value="Rename">
+                    </form>
+                </td>
+            </tr>
+            <tr><td>Referer</td><td>&nbsp;</td></tr>
+            <tr>
+                <td>Current segment</td>
+                <td style="text-align: center;">
+                    <div id="segment_bytes_count" style="font-size: small;"></div>
+                    <progress id="segment_bytes_progress" max="0" value="0" style="width: 100%;"></progress>
+                </td>
+            </tr>
+            <tr>
+                <td>Segments</td>
+                <td style="text-align: center;">
+                    <div id="segments_count" style="font-size: small;"></div>
+                    <div id="segments_duration" style="font-size: small;"></div>
+                    <progress id="segments_progress" max="0" value="0" style="width: 100%;"></progress>
+                </td>
+            </tr>
+            <tr>
+                <td>Size</td>
+                <td id="got_bytes" style="text-align: center;"></td>
+            </tr>
+        </table>
+
+        <script>
+            function secondsToTime(s) {
+                const date = new Date(0);
+                date.setSeconds(s); // specify value for SECONDS here
+                return date.toISOString().substring(11, 19);
+            }
+
+            class X {
+                filenameChanged = false;
+
+                constructor() {
+                    this.segmentsProgressElement = document.getElementById('segments_progress')
+                    this.segmentsCountElement = document.getElementById('segments_count')
+                    this.segmentBytesProgressElement = document.getElementById('segment_bytes_progress')
+                    this.segmentBytesCountElement = document.getElementById('segment_bytes_count')
+                    this.errorElement = document.getElementById('error')
+                    this.filenameElement = document.getElementById('filename')
+                    this.filenameElement.onfocus = function () {
+                        this.filenameChanged = true;
+                    }.bind(this)
+                    this.gotBytesElement = document.getElementById('got_bytes')
+                    this.segmentsDurationElement = document.getElementById('segments_duration')
+                    this.eventSource = new EventSource('/{{.TaskId}}/');
+                    this.eventSource.onmessage = this.onEventSourceMessage.bind(this);
+                }
+
+                onEventSourceMessage(event) {
+                    const data = JSON.parse(event.data);
+                    console.log(data);
+                    this.errorElement.textContent = data.error;
+                    this.segmentsCountElement.textContent = data.current_segment.num + ' / ' + data.segments_count;
+                    this.segmentsProgressElement.setAttribute('max', data.segments_count)
+                    this.segmentsProgressElement.setAttribute('value', data.current_segment.num);
+                    this.segmentBytesCountElement.textContent = (data.current_segment.got_bytes / 1024 / 1024).toFixed(1) + ' / ' + (data.current_segment.size / 1024 / 1024).toFixed(1) + ' Mb';
+                    this.segmentBytesProgressElement.setAttribute('max', data.current_segment.size)
+                    this.segmentBytesProgressElement.setAttribute('value', data.current_segment.got_bytes);
+                    if (!this.filenameChanged) {
+                        this.filenameElement.setAttribute('value', data.filename)
+                    }
+                    this.gotBytesElement.textContent = (data.got_bytes / 1024 / 1024).toFixed(1) + ' Mb';
+                    this.segmentsDurationElement.textContent = secondsToTime(data.downloaded_duration) + ' / ' + secondsToTime(data.segments_duration);
+                }
+
+            }
+
+            const x = new X();
+            console.log(x);
+
+
+        </script>
+    </body>
+</html>

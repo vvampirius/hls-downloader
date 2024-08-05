@@ -6,4 +6,5 @@ use (
 	.
 	playlist
 	downloader
+	hls-download-server
 )
