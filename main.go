@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const VERSION = `0.10`
+const VERSION = `0.10.2`
 
 var (
 	ErrorLog = log.New(os.Stderr, `error#`, log.Lshortfile)

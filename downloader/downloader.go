@@ -98,7 +98,9 @@ func (downloader *Downloader) downloadRoutine(notifyChan chan *Downloader, playl
 			notifyChan <- downloader
 			return
 		}
-		downloader.CurrentSegment.Num++
+		if !segment.IsMap {
+			downloader.CurrentSegment.Num++
+		}
 		downloader.CurrentSegment.GotBytes = 0
 		downloader.CurrentSegment.Url = segment.Uri
 		notifyChan <- downloader

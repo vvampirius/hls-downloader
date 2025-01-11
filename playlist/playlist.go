@@ -20,6 +20,7 @@ var (
 	RegexpTargetDuration = regexp.MustCompile(`^#EXT-X-TARGETDURATION:(\d+)$`)
 	RegexpMediaSequence  = regexp.MustCompile(`^#EXT-X-MEDIA-SEQUENCE:(\d+)$`)
 	RegexpExtInf         = regexp.MustCompile(`^#EXTINF:([\d\.]+),(.*)`)
+	RegexpExtXMapUri     = regexp.MustCompile(`^#EXT-X-MAP:URI="(.*)"$`)
 	RegexpUri            = regexp.MustCompile(`^([^\s#].*)`)
 	RegexpEndList        = regexp.MustCompile(`^#EXT-X-ENDLIST$`)
 )
@@ -28,12 +29,14 @@ type Segment struct {
 	Duration float32
 	Title    string
 	Uri      string
+	IsMap    bool
 }
 
 type Playlist struct {
 	Version        int
 	TargetDuration int
 	MediaSequence  int
+	MapUri         string
 	EndList        bool
 
 	segmentsCache          []*Segment
@@ -68,6 +71,15 @@ func (p *Playlist) GetSegment() (*Segment, error) {
 	err := errors.New(`Unexpected`)
 	ErrorLog.Println(err.Error())
 	return nil, err
+}
+
+func (p *Playlist) parseExtXMapUri(s string) bool {
+	match := RegexpExtXMapUri.FindStringSubmatch(s)
+	if len(match) != 2 {
+		return false
+	}
+	p.MapUri = match[1]
+	return true
 }
 
 func readExtm3u(r io.Reader) error {
@@ -174,6 +186,17 @@ func Parse(r io.ReadCloser) *Playlist {
 				p.SegmentsDuration = p.SegmentsDuration + segment.Duration
 				p.SegmentsCount++
 				segment = nil
+				continue
+			}
+			if p.parseExtXMapUri(line) {
+				s := Segment{IsMap: true, Uri: p.MapUri}
+				p.segmentsCacheMu.Lock()
+				p.segmentsCache = append(p.segmentsCache, &s)
+				if p.newSegmentNotification != nil {
+					p.newSegmentNotification <- &s
+					p.newSegmentNotification = nil
+				}
+				p.segmentsCacheMu.Unlock()
 				continue
 			}
 			if parseInt(line, RegexpVersion, &p.Version) {

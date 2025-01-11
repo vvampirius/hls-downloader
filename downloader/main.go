@@ -10,21 +10,18 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path"
+	"regexp"
 )
 
 var (
-	ErrorLog = log.New(os.Stderr, `error#`, log.Lshortfile)
-	DebugLog = log.New(os.Stdout, `debug#`, log.Lshortfile)
+	ErrorLog        = log.New(os.Stderr, `error#`, log.Lshortfile)
+	DebugLog        = log.New(os.Stdout, `debug#`, log.Lshortfile)
+	BaseUrlRegexp   = regexp.MustCompile(`/[^/]*$`)
+	SchemeUrlRegexp = regexp.MustCompile(`^https?://`)
 )
 
 func GetBaseURL(playlistUrl string) (string, error) {
-	u, err := url.Parse(playlistUrl)
-	if err != nil {
-		ErrorLog.Println(err.Error())
-		return ``, err
-	}
-	return fmt.Sprintf("%s://%s%s", u.Scheme, u.Host, path.Dir(u.Path)), nil
+	return string(BaseUrlRegexp.ReplaceAll([]byte(playlistUrl), []byte(""))), nil
 }
 
 func GetFfmpegOutput(outputFilename string) (io.WriteCloser, error) {
@@ -88,6 +85,10 @@ func MakeChunkUrl(baseUrl, segmentUri string) (string, error) {
 		err := errors.New(fmt.Sprintf("baseUrl: '%s', segmentUrl: '%s'", baseUrl, segmentUri))
 		ErrorLog.Println(err.Error())
 		return ``, err
+	}
+
+	if SchemeUrlRegexp.MatchString(segmentUri) {
+		return segmentUri, nil
 	}
 
 	if string([]rune(segmentUri)[0]) != `/` {
