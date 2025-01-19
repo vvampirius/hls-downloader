@@ -1,18 +1,52 @@
 <!DOCTYPE html>
 <html>
+    <head>
+        <style>
+            .in_progress {
+                width: fit-content;
+                background-color: yellow;
+                padding: 4px;
+                border-radius: 6px;
+            }
+            .error {
+                width: fit-content;
+                color: red;
+            }
+            .finished {
+                width: fit-content;
+                color: green;
+            }
+            #error {
+                background-color: rgba(255, 0, 0, 0.6);
+                padding: 8px;
+                border-radius: 5px;
+            }
+            a {
+                text-decoration: unset;
+            }
+        </style>
+    </head>
     <body>
         <div style="text-align: center;">
-            <a href="/">UP</a>
+            <a href="/">⬆</a>
         </div>
         <table style="border-style: outset; width: 30rem; margin: 0 auto; border-radius: 5px; margin-top: 1em; background-color: floralwhite;
   padding: 5px;">
-            <tr><td colspan="2"><p id="error"></p></td></tr>
+            <tr><td colspan="2" align="center"><p id="status" class="in_progress">IN PROGRESS</p></td></tr>
+            <tr>
+                <td>Playlist</td>
+                <td>
+                    <div style="max-width: 90vw;overflow: scroll;">
+                        <a href="{{.Task.Url}}" style="white-space: nowrap;">{{.Task.Url}}</a>
+                    </div>
+                </td>
+            </tr>
             <tr>
                 <td>Filename</td>
                 <td style="text-align: center;">
                     <form>
                         <input id="filename" type="text">
-                        <input type="submit" value="Rename">
+                        <input type="submit" value="Rename" disabled>
                     </form>
                 </td>
             </tr>
@@ -36,6 +70,7 @@
                 <td>Size</td>
                 <td id="got_bytes" style="text-align: center;"></td>
             </tr>
+            <tr><td colspan="2"><p id="error" style="display: none"></p></td></tr>
         </table>
 
         <script>
@@ -49,6 +84,7 @@
                 filenameChanged = false;
 
                 constructor() {
+                    this.statusElement = document.getElementById('status')
                     this.segmentsProgressElement = document.getElementById('segments_progress')
                     this.segmentsCountElement = document.getElementById('segments_count')
                     this.segmentBytesProgressElement = document.getElementById('segment_bytes_progress')
@@ -67,7 +103,15 @@
                 onEventSourceMessage(event) {
                     const data = JSON.parse(event.data);
                     console.log(data);
-                    this.errorElement.textContent = data.error;
+                    if (data.error !== "") {
+                        this.errorElement.textContent = data.error;
+                        this.errorElement.style.removeProperty('display')
+                        this.statusElement.className = 'error'
+                        this.statusElement.textContent = 'ERROR'
+                    } else if (data.finished) {
+                        this.statusElement.className = 'finished'
+                        this.statusElement.textContent = 'FINISHED'
+                    }
                     this.segmentsCountElement.textContent = data.current_segment.num + ' / ' + data.segments_count;
                     this.segmentsProgressElement.setAttribute('max', data.segments_count)
                     this.segmentsProgressElement.setAttribute('value', data.current_segment.num);

@@ -6,6 +6,7 @@ import (
 	"github.com/vvampirius/hls-downloader/downloader"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -24,6 +25,12 @@ func (core *Core) addHandler(w http.ResponseWriter, r *http.Request) {
 	filename := r.URL.Query().Get(`filename`)
 	if filename == `` {
 		filename = fmt.Sprintf(`%d.mp4`, time.Now().Unix())
+	} else if !strings.Contains(filename, `.`) {
+		filename = fmt.Sprintf(`%s.mp4`, filename)
+	}
+	useFfmpeg := true
+	if r.URL.Query().Has(`dont_recode`) {
+		useFfmpeg = false
 	}
 	task := Task{
 		EventStreams: make([]*EventStream, 0),
@@ -41,7 +48,7 @@ func (core *Core) addHandler(w http.ResponseWriter, r *http.Request) {
 	if userAgent := r.Header.Get(`User-Agent`); userAgent != `` {
 		requestHeaders[`User-Agent`] = userAgent
 	}
-	c, err := task.Downloader.Download(taskUrl, filename, true, requestHeaders)
+	c, err := task.Downloader.Download(taskUrl, filename, useFfmpeg, requestHeaders)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintln(w, err.Error())

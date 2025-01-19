@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strings"
 )
 
 var (
@@ -86,6 +87,8 @@ func MakeChunkUrl(baseUrl, segmentUri string) (string, error) {
 		ErrorLog.Println(err.Error())
 		return ``, err
 	}
+
+	segmentUri = strings.Replace(segmentUri, `vh74.vhcdn.com`, `2lfkbh0yxg.a.trbcdn.net`, 1) // TODO: fix hardcode
 
 	if SchemeUrlRegexp.MatchString(segmentUri) {
 		return segmentUri, nil

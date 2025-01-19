@@ -68,3 +68,10 @@ func (task *Task) GetInfo() TaskInfo {
 	}
 	return ti
 }
+
+func (task *Task) IsError() bool {
+	if task.Downloader != nil && task.Downloader.Error != nil {
+		return true
+	}
+	return false
+}

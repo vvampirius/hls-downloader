@@ -1,33 +1,55 @@
 <html>
+    <head>
+        <style>
+            .downloads {display: flex;margin: 0 auto;width: fit-content;max-width: 50rem; flex-wrap: wrap;}
+
+            .download {
+                display: flex;
+                margin-right: 0.5em;
+                background-color: rgb(0, 100, 255, 0.1);
+                margin-bottom: 5px;
+                padding: 2px;
+                border-radius: 8px;
+            }
+
+            .download_filename {margin-left: 3px;white-space: nowrap;}
+        </style>
+    </head>
     <body>
         <form action="/add" method="get">
             <input type="hidden" name="ignore_referrer" value="true">
             <table style="margin: 0 auto">
                 <tr>
                     <td><label for="filename">Filename:</label></td>
-                    <td><input type="text" name="filename" id="filename" autofocus/></td>
+                    <td><input type="text" name="filename" id="filename" size="30" autofocus/></td>
                 </tr>
                 <tr>
-                    <td><label for="url">URL: </label></td>
-                    <td><input type="url" name="url" id="url" required /></td>
+                    <td><label for="url">Playlist URL: </label></td>
+                    <td><input type="url" name="url" id="url" size="30" required /></td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="text-align: center">
+                        <input type="checkbox" id="dont_recode" name="dont_recode" />
+                        <label for="dont_recode">do not recode</label>
+                    </td>
                 </tr>
                 <tr>
                     <td colspan="2" style="text-align: center"><input type="submit" value="Add" /></td>
                 </tr>
             </table>
         </form>
-        <table style="margin: 0 auto">
+        <div class="downloads">
             {{ range $key, $value := . }}
-            <tr>
-                <td>{{ if $value.Finished }}✅{{ else }}⌛️{{ end }}</td>
-                <td>
-                    <a href="/{{ $key }}/">{{ $value.Filename }}</a>
+            <div class="download">
+                <div class="download_status">{{if $value.IsError }}❌{{ else if $value.Finished }}✅{{ else }}⌛️{{ end }}</div>
+                <div class="download_filename">
+                    <a href="/{{ $key }}/" style="text-decoration: none;">{{ $value.Filename }}</a>
                     {{ if ne $value.Source "" }}
                     <br><a href="{{$value.Source}}" target="_blank" style="font-size: small;">{{$value.Source}}</a>
                     {{ end }}
-                </td>
-            </tr>
+                </div>
+            </div>
             {{ end }}
-        </table>
+        </div>
     </body>
 </html>
